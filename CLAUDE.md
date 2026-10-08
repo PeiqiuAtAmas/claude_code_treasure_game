@@ -2,30 +2,135 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project
-
-"Interactive Treasure Box Game" — a single-page React 18 + TypeScript app built with Vite 6 (SWC plugin). The project was exported from Figma Make, which explains the large shadcn/ui component set and the unusual Vite config. It is also used as a Claude Code tutorial project (see `README.md` for the planned exercises: sound effects, win/tie/loss result display, custom key cursor, SQLite sign-in/scores, Vercel/GitHub Pages deploy commands).
-
-## Commands
+## Development Commands
 
 ```bash
+# Install dependencies (both frontend and backend)
 npm install
-npm run dev     # Vite dev server on http://localhost:3000 (auto-opens browser)
-npm run build   # Production build to ./build (not ./dist)
+cd server && npm install && cd ..
+
+# Start backend server (runs on http://localhost:3001)
+cd server && npm run dev
+
+# Start frontend development server (opens at http://localhost:3000)
+npm run dev
+
+# Build for production
+npm run build
 ```
 
-There is no test runner, linter, or `tsconfig.json` configured — Vite/SWC strips types without type-checking, so type errors will not fail the build.
+## Project Architecture
 
-## Architecture
+### Core Application
+This is a **Full-Stack React + TypeScript + Vite + Express + SQLite** treasure hunting game with user authentication:
 
-- **All game logic lives in `src/App.tsx`.** State is `boxes` (3 boxes, one randomly assigned `hasTreasure`), `score`, and `gameEnded`. Opening a treasure box gives +100, a skeleton box −50. The game ends when the treasure is found or all boxes are opened; "Play Again" calls `initializeGame()`. Note `openBox` calls `setScore` from inside the `setBoxes` updater using the closed-over `score`.
-- Animations use `motion/react` (Framer Motion's successor): chest flip (`rotateY`), hover/tap scaling, and fade-in result labels.
-- Static assets are imported as ES modules: images in `src/assets/` (closed/opened/skeleton chests, `key.png` for a cursor), sounds in `src/audios/` (`chest_open.mp3`, `chest_open_with_evil_laugh.mp3`). The audio files are already imported in `App.tsx` but not yet played. `src/results/` holds reference screenshots, not app code.
-- `src/components/ui/` is the stock shadcn/ui (Radix-based) library; only `Button` is currently used. `cn()` helper is in `src/components/ui/utils.ts`. `src/components/figma/ImageWithFallback.tsx` is a Figma Make helper.
-- `@` is aliased to `./src`. The versioned aliases in `vite.config.ts` (e.g. `'sonner@2.0.3': 'sonner'`) exist because Figma-generated code imports packages with version suffixes — keep them if such imports remain.
+**Frontend (React)**
+- **Entry Point**: `src/main.tsx` renders the main App component wrapped with AuthProvider
+- **Main Game Logic**: `src/App.tsx` contains game state management, UI logic, and authentication modes
+- **Authentication**: `src/contexts/AuthContext.tsx` provides global auth state management
+- **UI Components**: `src/components/ui/` contains Radix UI-based components with shadcn/ui styling
+- **Auth Components**: `src/components/auth/` contains LoginForm, SignupForm, and UserProfile components
+- **Styling**: Uses **Tailwind CSS** with custom gradient backgrounds and animations
+- **Animations**: Uses **Framer Motion** (imported as 'motion/react') for smooth transitions and interactions
 
-## Styling caveat
+**Backend (Express + SQLite)**
+- **Server**: `server/server.js` - Express.js API server running on port 3001
+- **Database**: `server/database.js` - SQLite database setup with users and game_scores tables
+- **Authentication**: JWT-based auth with bcrypt password hashing
+- **API Routes**: `server/routes/auth.js` (signup/signin) and `server/routes/scores.js` (game scores)
 
-`src/index.css` (imported by `main.tsx`) is a **pre-compiled Tailwind v4 output** — Tailwind is not installed and there is no PostCSS/Tailwind step in the build. Only utility classes already present in `index.css` will work; a new class (e.g. an arbitrary `cursor-[url(...)]`) will silently have no effect. For new styling, either use classes already in the file, inline `style` props, or add plain CSS. `src/styles/globals.css` holds the theme tokens (CSS variables) but is not imported at runtime.
+### Game Mechanics
+The game implements a treasure hunting experience with three modes:
 
-`src/guidelines/Guidelines.md` is an empty Figma Make template with no active rules.
+**Game Flow**
+- Players click treasure chests to reveal either treasure (+$150) or skeleton (-$50)
+- Auto-initialization: Game starts automatically on component mount
+- End Conditions: Game ends when treasure is found OR all 3 boxes are opened
+- Custom key cursor appears when hovering over closed treasure boxes
+
+**Authentication Modes**
+- **Guest Mode**: Play without account - scores are not saved
+- **Authenticated Mode**: Sign in/up to save scores and track statistics
+- **Profile Mode**: View game statistics, recent scores, and account management
+
+**Data Persistence**
+- Authenticated users: Scores saved to SQLite database with game statistics
+- Guest users: No data persistence, play session only
+
+### Asset Structure
+```
+src/
+├── assets/              # Game images (treasure chests, key icon)
+├── audios/              # Sound effects (chest opening sounds)
+├── components/
+│   ├── auth/            # Authentication components (LoginForm, SignupForm, UserProfile)
+│   └── ui/              # Reusable UI components (Radix UI + shadcn/ui)
+├── contexts/            # React contexts (AuthContext for global auth state)
+├── services/            # API service functions (score saving, user data)
+└── styles/              # Additional styling files
+
+server/
+├── routes/              # Express route handlers (auth, scores)
+├── middleware/          # Auth middleware (JWT verification)
+├── database.js          # SQLite database setup and table creation
+└── server.js           # Main Express server configuration
+```
+
+### Key Dependencies
+
+**Frontend**
+- **React 18** with TypeScript
+- **Framer Motion** for animations (import from 'motion/react')
+- **Radix UI** components for accessible UI primitives
+- **Tailwind CSS** for styling
+- **Vite** for build tooling with SWC for fast compilation
+
+**Backend**
+- **Express.js** for API server
+- **SQLite3** for database
+- **bcryptjs** for password hashing
+- **jsonwebtoken** for JWT authentication
+- **express-validator** for input validation
+- **cors** for cross-origin requests
+
+### Development Notes
+- **Build Target**: ES Next for modern browser support
+- **Frontend Port**: Development server runs on port 3000
+- **Backend Port**: API server runs on port 3001
+- **Database**: SQLite file-based database (treasure_game.db)
+- **Build Output**: Builds to `build/` directory
+- **Path Aliases**: `@/` resolves to `src/` directory
+- **Audio Integration**: Sound files are imported as modules and can be played programmatically
+- **Authentication**: JWT tokens stored in localStorage, 24-hour expiration
+- Always use descriptive variable name
+- add comments on the top of every new function in one line to summarize the usage and you MUST document the inputs and output parameters
+
+### API Endpoints
+
+**Authentication**
+- `POST /api/auth/signup` - Create new user account
+- `POST /api/auth/signin` - User login
+- `POST /api/auth/logout` - User logout (client-side token removal)
+
+**Game Scores**
+- `POST /api/scores` - Save game score (requires authentication)
+- `GET /api/scores/user` - Get user's score history and statistics (requires authentication)
+- `GET /api/health` - Server health check
+
+### Database Schema
+
+**users table**
+- id (INTEGER PRIMARY KEY)
+- username (TEXT UNIQUE)
+- email (TEXT UNIQUE)  
+- password_hash (TEXT)
+- created_at (DATETIME)
+
+**game_scores table**
+- id (INTEGER PRIMARY KEY)
+- user_id (INTEGER FOREIGN KEY)
+- score (INTEGER)
+- result (TEXT: 'Win', 'Tie', 'Loss')
+- boxes_opened (INTEGER)
+- treasure_found (BOOLEAN)
+- played_at (DATETIME)
